@@ -5,8 +5,7 @@ from numba import jit
 import numpy as np
 
 
-# @numba.jit(nopython=True)
-@jit
+@jit(nopython=True)
 def update(u, dt, dx, c, simSize):
     '''
     update the current waveform, overwriting old waveform
@@ -29,8 +28,7 @@ def update(u, dt, dx, c, simSize):
 
 
 
-# @numba.jit(nopython=True)
-@jit
+@jit(nopython=True)
 def updateInviscid(u, dt, dx, simSize):
     '''
     update the current waveform, overwriting old waveform
@@ -85,6 +83,8 @@ class LinearConvectionSim(object):
         self.t = t
         self.dt = t[1] - t[0]
         self.c = c
+
+        self.step_t = self.t[0]
     
     def step(self, mode='inviscid'):
         '''
@@ -99,39 +99,63 @@ class LinearConvectionSim(object):
         else:
             self.u = update(self.u, self.dt, self.dx, self.c, self.simSize)
 
+
 def _visualize_test():
+    from matplotlib.animation import FuncAnimation
     import matplotlib.pyplot as plt
     import time
 
+    # set up initial conditions
     x = np.linspace(0, 2, 41)
     t = np.linspace(0, 0.5, 25)
     u = np.ones((41,))
     u[(x>0.5) & (x<1)] = 2.
 
+    # set up simulation
     l = LinearConvectionSim(u, x, t)
 
-    plt.ion()
-    hl, = plt.plot(x, l.u)
-    plt.show()
-    plt.pause(1e-17)
+    # set up matplotlib stuff
+    plt.ioff()
+    fig = plt.figure(figsize=(7, 7))
+    line, = plt.plot(x, l.u)
 
-    for _time in t:
-        l.step('inviscid')
-        hl.set_ydata(l.u)
-        plt.title(str(int(_time*1000)) + ' ms')
-        plt.draw()
-        plt.pause(1e-17)
-        time.sleep(0.025)
+    def animate(frame, mode='regular'):
+        l.step(mode)
+        line.set_ydata(l.u)
+        return line,
     
+    # Init only required for blitting to give a clean slate.
+    def init():
+        line.set_ydata(np.ma.array(x, mask=True))
+        return line,
+
+    anim = FuncAnimation(fig, animate, frames=t,
+                         fargs={'mode' : 'regular'}, init_func=init,
+                         interval=20, blit=True, repeat=False)
+    plt.show()
+
     l = LinearConvectionSim(u, x, t)
 
-    for _time in t:
-        l.step('regular')
-        hl.set_ydata(l.u)
-        plt.title(str(int(_time*1000)) + ' ms')
-        plt.draw()
-        plt.pause(1e-17)
-        time.sleep(0.025)
+    # set up matplotlib stuff
+    fig = plt.figure(figsize=(7, 7))
+    line, = plt.plot(x, l.u)
+
+    animation = FuncAnimation(fig, animate, frames=t,
+                         fargs={'inviscid'}, init_func=init,
+                         interval=20, blit=True, repeat=False)
+    
+    plt.show()
+
+    # reset
+    # l = LinearConvectionSim(u, x, t)
+
+    # for _time in t:
+    #     l.step('regular')
+    #     lines.set_ydata(l.u)
+    #     plt.title(str(int(_time*1000)) + ' ms')
+    #     plt.draw()
+    #     plt.pause(1e-17)
+    #     time.sleep(0.025)
 
 
 if __name__ == "__main__":
